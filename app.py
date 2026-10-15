@@ -1,0 +1,317 @@
+
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+
+from database import get_workforce_events
+
+st.set_page_config(
+    page_title="Economic Activity Tracker",
+    page_icon="📊",
+    layout="wide"
+)
+
+
+# -----------------------------------
+# Google Authentication
+# -----------------------------------
+
+if not st.user.get("is_logged_in", False):
+
+    st.title("📊 Economic Activity Tracker")
+
+    st.write(
+        "Track employment announcements, hiring, "
+        "layoffs and workforce developments."
+    )
+
+    if st.button("Login with Google", type="primary"):
+        st.login("google")
+
+    st.stop()
+# -----------------------------------
+# Sidebar
+# -----------------------------------
+with st.sidebar:
+    st.title("EATI")
+    st.write(f"Welcome, {st.user.name}")
+
+    if st.button("Logout"):
+        st.logout()
+
+    st.divider()
+
+    page = st.radio(
+        "Navigation",
+        ["Dashboard", "Workforce News"]
+    )
+
+    if st.button("Refresh Data"):
+        get_workforce_events.clear()
+        st.rerun()
+
+# -----------------------------------
+# Load data from Supabase
+# -----------------------------------
+try:
+    df = get_workforce_events()
+except Exception as e:
+    st.error("Unable to load workforce data from Supabase.")
+    st.exception(e)
+    st.stop()
+
+if df.empty:
+    st.warning("No records found in workforce_events.")
+    st.stop()
+
+# -----------------------------------
+# Prepare data
+# -----------------------------------
+df["publication_date"] = pd.to_datetime(
+    df["publication_date"], errors="coerce"
+)
+
+df["jobs_affected_count"] = pd.to_numeric(
+    df["jobs_affected_count"], errors="coerce"
+)
+
+# -----------------------------------
+# Filters
+# -----------------------------------
+st.title("📊 Economic Activity Tracker")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    categories = sorted(
+        df["news_category"].dropna().unique().tolist()
+    )
+    selected_category = st.selectbox(
+        "News Category", ["All"] + categories
+    )
+
+with col2:
+    states = sorted(
+        df["state_or_region"].dropna().unique().tolist()
+    )
+    selected_state = st.selectbox(
+        "State / Region", ["All"] + states
+    )
+
+with col3:
+    industries = sorted(
+        df["industry"].dropna().unique().tolist()
+    )
+    selected_industry = st.selectbox(
+        "Industry", ["All"] + industries
+    )
+
+filtered = df.copy()
+
+if selected_category != "All":
+    filtered = filtered[
+        filtered["news_category"] == selected_category
+    ]
+
+if selected_state != "All":
+    filtered = filtered[
+        filtered["state_or_region"] == selected_state
+    ]
+
+if selected_industry != "All":
+    filtered = filtered[
+        filtered["industry"] == selected_industry
+    ]
+
+# -----------------------------------
+# Dashboard
+# -----------------------------------
+if page == "Dashboard":
+
+    st.subheader("Workforce Activity Overview")
+
+    total_events = len(filtered)
+    total_companies = filtered["company_name"].nunique()
+    total_jobs = int(
+        filtered["jobs_affected_count"].sum()
+    )
+    total_states = filtered["state_or_region"].nunique()
+
+    m1, m2, m3, m4 = st.columns(4)
+
+    m1.metric("News Events", f"{total_events:,}")
+    m2.metric("Companies", f"{total_companies:,}")
+    m3.metric("Jobs Affected", f"{total_jobs:,}")
+    m4.metric("States / Regions", f"{total_states:,}")
+
+    st.caption(
+        "Jobs Affected is the sum of reported counts "
+        "across filtered records, not net job creation."
+    )
+
+    st.divider()
+
+    left, right = st.columns(2)
+
+    with left:
+        st.subheader("News by Category")
+
+        category_counts = (
+            filtered["news_category"]
+            .fillna("Unknown")
+            .value_counts()
+            .reset_index()
+        )
+        category_counts.columns = [
+            "Category", "Events"
+        ]
+
+        fig = px.bar(
+            category_counts,
+            x="Category",
+            y="Events",
+            title="Workforce News Categories"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with right:
+        st.subheader("News by Industry")
+
+        industry_counts = (
+            filtered["industry"]
+            .fillna("Unknown")
+            .value_counts()
+            .head(10)
+            .reset_index()
+        )
+        industry_counts.columns = [
+            "Industry", "Events"
+        ]
+
+        fig = px.bar(
+            industry_counts,
+            x="Industry",
+            y="Events",
+            title="Top 10 Industries"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.divider()
+
+    st.subheader("Monthly Workforce News Trend")
+
+    monthly = filtered.dropna(
+        subset=["publication_date"]
+    ).copy()
+
+    if not monthly.empty:
+        monthly["Month"] = (
+            monthly["publication_date"]
+            .dt.to_period("M")
+            .astype(str)
+        )
+
+        trend = (
+            monthly.groupby("Month")
+            .size()
+            .reset_index(name="Events")
+        )
+
+        fig = px.line(
+            trend,
+            x="Month",
+            y="Events",
+            markers=True,
+            title="Published Workforce Events by Month"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No publication dates available.")
+
+# -----------------------------------
+# Workforce News
+# -----------------------------------
+elif page == "Workforce News":
+
+    st.subheader("Latest Workforce News")
+
+    search = st.text_input(
+        "Search by company or headline",
+        placeholder="e.g. Microsoft, layoffs, hiring"
+    )
+
+    news = filtered.copy()
+
+    if search:
+        matches = (
+            news["company_name"]
+            .fillna("")
+            .str.contains(search, case=False, regex=False)
+            |
+            news["headline"]
+            .fillna("")
+            .str.contains(search, case=False, regex=False)
+        )
+        news = news[matches]
+
+    news = news.sort_values(
+        "publication_date",
+        ascending=False,
+        na_position="last"
+    )
+
+    st.write(f"Showing {len(news)} records")
+
+    for _, article in news.iterrows():
+
+        with st.container(border=True):
+
+            st.subheader(
+                article["headline"]
+                if pd.notna(article["headline"])
+                else "Untitled News"
+            )
+
+            st.write(
+                f"**Company:** {article['company_name']}"
+            )
+
+            st.write(
+                f"**Industry:** {article['industry']}"
+            )
+
+            st.write(
+                f"**Region:** {article['state_or_region']}"
+            )
+
+            st.write(
+                f"**Employment Status:** "
+                f"{article['employment_status']}"
+            )
+
+            if pd.notna(article["jobs_affected_count"]):
+                st.write(
+                    f"**Jobs Affected:** "
+                    f"{int(article['jobs_affected_count']):,}"
+                )
+            elif pd.notna(article["jobs_affected_text"]):
+                st.write(
+                    f"**Jobs Affected:** "
+                    f"{article['jobs_affected_text']}"
+                )
+
+            if pd.notna(article["factual_summary"]):
+                st.write(article["factual_summary"])
+
+            st.caption(
+                f"Source: {article['news_source']} | "
+                f"Published: {article['publication_date']}"
+            )
+
+            if pd.notna(article["article_url"]) \
+                    and article["article_url"]:
+                st.link_button(
+                    "Read Original Article",
+                    article["article_url"]
+                )
+
