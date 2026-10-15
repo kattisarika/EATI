@@ -175,24 +175,24 @@ if page == "Dashboard":
         st.plotly_chart(fig, use_container_width=True)
 
     with right:
-        st.subheader("News by Industry")
+        st.subheader("News by Company")
 
-        industry_counts = (
-            filtered["industry"]
+        company_counts = (
+            filtered["company_name"]
             .fillna("Unknown")
             .value_counts()
             .head(10)
             .reset_index()
         )
-        industry_counts.columns = [
-            "Industry", "Events"
+        company_counts.columns = [
+            "Company", "Events"
         ]
 
         fig = px.bar(
-            industry_counts,
-            x="Industry",
+            company_counts,
+            x="Company",
             y="Events",
-            title="Top 10 Industries"
+            title="Top 10 Companies"
         )
         st.plotly_chart(fig, use_container_width=True)
 
