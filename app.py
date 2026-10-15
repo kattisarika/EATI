@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-
+from user_database import save_google_user
 from database import get_workforce_events
 
 st.set_page_config(
@@ -12,12 +12,12 @@ st.set_page_config(
 )
 
 
+
 # -----------------------------------
 # Google Authentication
 # -----------------------------------
 
 if not st.user.get("is_logged_in", False):
-
     st.title("📊 Economic Activity Tracker")
 
     st.write(
@@ -29,14 +29,29 @@ if not st.user.get("is_logged_in", False):
         st.login("google")
 
     st.stop()
+
+# Save the authenticated user once per Streamlit session.
+if not st.session_state.get("google_user_saved", False):
+    try:
+        user_id = save_google_user(st.user)
+        st.session_state["google_user_saved"] = True
+        st.session_state["app_user_id"] = str(user_id)
+    except Exception as e:
+        st.error("Unable to save Google login information.")
+        st.exception(e)
+        st.stop()
 # -----------------------------------
 # Sidebar
 # -----------------------------------
+
+
 with st.sidebar:
     st.title("EATI")
     st.write(f"Welcome, {st.user.name}")
 
     if st.button("Logout"):
+        st.session_state.pop("google_user_saved", None)
+        st.session_state.pop("app_user_id", None)
         st.logout()
 
     st.divider()
@@ -49,6 +64,7 @@ with st.sidebar:
     if st.button("Refresh Data"):
         get_workforce_events.clear()
         st.rerun()
+
 
 # -----------------------------------
 # Load data from Supabase
