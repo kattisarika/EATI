@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 
 from database import get_workforce_events
+from user_database import save_google_user
 
 st.set_page_config(
     page_title="Economic Activity Tracker",
@@ -29,6 +30,18 @@ if not st.user.get("is_logged_in", False):
         st.login("google")
 
     st.stop()
+
+# Save the authenticated Google user once per Streamlit session.
+if not st.session_state.get("google_user_saved", False):
+    try:
+        user_id = save_google_user(st.user)
+        st.session_state["google_user_saved"] = True
+        st.session_state["app_user_id"] = str(user_id)
+    except Exception as e:
+        st.error("Unable to save Google login information.")
+        st.exception(e)
+        st.stop()
+
 # Top navigation: each link opens a separate Streamlit page.
 st.markdown("### Career Tools")
 nav_cols = st.columns(4)
