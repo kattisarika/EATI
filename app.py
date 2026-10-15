@@ -106,7 +106,37 @@ with col3:
         "Industry", ["All"] + industries
     )
 
+# Publication date filters
+st.markdown("**Publication Date**")
+year_col, month_col = st.columns(2)
+
+available_years = sorted(
+    df["publication_date"].dropna().dt.year.astype(int).unique().tolist(),
+    reverse=True,
+)
+
+with year_col:
+    selected_year = st.selectbox("Year", ["All"] + available_years)
+
+with month_col:
+    month_options = ["All"] + [
+        pd.Timestamp(year=2000, month=m, day=1).strftime("%B")
+        for m in range(1, 13)
+    ]
+    selected_month = st.selectbox("Month", month_options)
+
 filtered = df.copy()
+
+if selected_year != "All":
+    filtered = filtered[
+        filtered["publication_date"].dt.year == selected_year
+    ]
+
+if selected_month != "All":
+    month_number = month_options.index(selected_month)
+    filtered = filtered[
+        filtered["publication_date"].dt.month == month_number
+    ]
 
 if selected_category != "All":
     filtered = filtered[
