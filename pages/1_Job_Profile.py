@@ -29,6 +29,19 @@ if not st.user.get("is_logged_in", False):
     st.stop()
 
 
+# -----------------------------------------
+# Navigation
+# -----------------------------------------
+if st.button("🏠 Back to EATI Dashboard"):
+    st.switch_page("home.py")
+
+st.divider()
+
+
+
+
+
+
 # ============================================
 # DATABASE CONNECTION
 # ============================================
