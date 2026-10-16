@@ -8,9 +8,10 @@ from geopy.geocoders import Nominatim
 from streamlit_geolocation import streamlit_geolocation
 
 
-# -----------------------------------
-# Page Configuration
-# -----------------------------------
+# ============================================
+# PAGE CONFIGURATION
+# ============================================
+
 st.set_page_config(
     page_title="Job Profile | EATI",
     page_icon="👤",
@@ -18,18 +19,20 @@ st.set_page_config(
 )
 
 
-# -----------------------------------
-# Google Authentication
-# -----------------------------------
+# ============================================
+# GOOGLE AUTHENTICATION
+# ============================================
+
 if not st.user.get("is_logged_in", False):
     st.warning("Please log in to access your Job Profile.")
     st.page_link("app.py", label="Go to Login", icon="🔐")
     st.stop()
 
 
-# -----------------------------------
-# Database Connection
-# -----------------------------------
+# ============================================
+# DATABASE CONNECTION
+# ============================================
+
 def get_connection():
     db_url = st.secrets["connections"]["postgres"]["url"]
     return psycopg.connect(db_url, connect_timeout=10)
@@ -55,39 +58,42 @@ def get_app_user_id():
 
     if result is None:
         raise ValueError(
-            "Your account was not found in app_users. "
+            "Your Google account is not registered. "
             "Please return to the dashboard and log in again."
         )
 
     return result[0]
 
 
-# -----------------------------------
-# Retrieve Existing Profile
-# -----------------------------------
+# ============================================
+# RETRIEVE EXISTING JOB PROFILE
+# ============================================
+
 def get_job_profile(user_id):
+
+    sql = """
+        SELECT
+            looking_for_job,
+            full_name,
+            date_of_birth,
+            phone_number,
+            skills,
+            location,
+            state,
+            willing_to_relocate,
+            relocation_other,
+            desired_role,
+            certifications,
+            linkedin_profile,
+            visa_status,
+            visa_status_other
+        FROM public.job_profiles
+        WHERE user_id = %s
+    """
+
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    looking_for_job,
-                    full_name,
-                    date_of_birth,
-                    phone_number,
-                    skills,
-                    location,
-                    willing_to_relocate,
-                    relocation_other,
-                    desired_role,
-                    certifications,
-                    linkedin_profile
-                FROM public.job_profiles
-                WHERE user_id = %s
-                """,
-                (user_id,),
-            )
-
+            cur.execute(sql, (user_id,))
             result = cur.fetchone()
 
     if not result:
@@ -100,19 +106,23 @@ def get_job_profile(user_id):
         "phone_number",
         "skills",
         "location",
+        "state",
         "willing_to_relocate",
         "relocation_other",
         "desired_role",
         "certifications",
         "linkedin_profile",
+        "visa_status",
+        "visa_status_other",
     ]
 
     return dict(zip(fields, result))
 
 
-# -----------------------------------
-# Save Job Profile
-# -----------------------------------
+# ============================================
+# SAVE JOB PROFILE TO SUPABASE
+# ============================================
+
 def save_job_profile(user_id, profile):
 
     sql = """
@@ -124,15 +134,19 @@ def save_job_profile(user_id, profile):
             phone_number,
             skills,
             location,
+            state,
             willing_to_relocate,
             relocation_other,
             desired_role,
             certifications,
-            linkedin_profile
+            linkedin_profile,
+            visa_status,
+            visa_status_other
         )
         VALUES (
-            %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s
         )
         ON CONFLICT (user_id)
         DO UPDATE SET
@@ -142,11 +156,14 @@ def save_job_profile(user_id, profile):
             phone_number = EXCLUDED.phone_number,
             skills = EXCLUDED.skills,
             location = EXCLUDED.location,
+            state = EXCLUDED.state,
             willing_to_relocate = EXCLUDED.willing_to_relocate,
             relocation_other = EXCLUDED.relocation_other,
             desired_role = EXCLUDED.desired_role,
             certifications = EXCLUDED.certifications,
             linkedin_profile = EXCLUDED.linkedin_profile,
+            visa_status = EXCLUDED.visa_status,
+            visa_status_other = EXCLUDED.visa_status_other,
             updated_at = NOW()
     """
 
@@ -158,11 +175,14 @@ def save_job_profile(user_id, profile):
         profile["phone_number"],
         profile["skills"],
         profile["location"],
+        profile["state"],
         profile["willing_to_relocate"],
         profile["relocation_other"],
         profile["desired_role"],
         profile["certifications"],
         profile["linkedin_profile"],
+        profile["visa_status"],
+        profile["visa_status_other"],
     )
 
     with get_connection() as conn:
@@ -170,10 +190,12 @@ def save_job_profile(user_id, profile):
             cur.execute(sql, values)
 
 
-# -----------------------------------
-# Location Detection
-# -----------------------------------
+# ============================================
+# DETECT CITY AND STATE
+# ============================================
+
 def detect_city_state(latitude, longitude):
+
     geolocator = Nominatim(user_agent="eati_job_profile")
 
     result = geolocator.reverse(
@@ -183,7 +205,7 @@ def detect_city_state(latitude, longitude):
     )
 
     if not result:
-        return None
+        return None, None
 
     address = result.raw.get("address", {})
 
@@ -198,17 +220,19 @@ def detect_city_state(latitude, longitude):
 
     state = address.get("state", "")
 
-    if not city or not state:
-        return None
-
-    return f"{city}, {state}"
+    return city, state
 
 
-# -----------------------------------
-# Initialize User
-# -----------------------------------
+# ============================================
+# LOAD USER AND EXISTING PROFILE
+# ============================================
+
 st.title("👤 Job Profile")
-st.write("Complete your profile to help us understand your job preferences.")
+
+st.write(
+    "Complete your profile to help us understand "
+    "your job preferences."
+)
 
 try:
     user_id = get_app_user_id()
@@ -220,32 +244,30 @@ except Exception as e:
     st.stop()
 
 
-# -----------------------------------
-# Initialize Session State
-# -----------------------------------
-if "job_profile_user_id" not in st.session_state or (
-    st.session_state["job_profile_user_id"] != str(user_id)
-):
+# ============================================
+# INITIALIZE SESSION STATE
+# ============================================
+
+if st.session_state.get("job_profile_user_id") != str(user_id):
+
     st.session_state["job_profile_user_id"] = str(user_id)
 
     st.session_state["job_looking"] = (
         "Yes"
-        if existing and existing["looking_for_job"]
+        if not existing or existing["looking_for_job"]
         else "No"
+    )
+
+    saved_relocation = (
+        existing.get("willing_to_relocate")
         if existing
-        else "Yes"
+        else None
     )
 
     st.session_state["job_relocate"] = (
-        existing.get("willing_to_relocate") or "No"
-        if existing
+        saved_relocation
+        if saved_relocation in ("Yes", "No", "Other")
         else "No"
-    )
-
-    st.session_state["job_location"] = (
-        existing.get("location") or ""
-        if existing
-        else ""
     )
 
     st.session_state["job_relocation_other"] = (
@@ -254,10 +276,50 @@ if "job_profile_user_id" not in st.session_state or (
         else ""
     )
 
+    st.session_state["job_city"] = (
+        existing.get("location") or ""
+        if existing
+        else ""
+    )
 
-# -----------------------------------
-# Looking for Job
-# -----------------------------------
+    st.session_state["job_state"] = (
+        existing.get("state") or ""
+        if existing
+        else ""
+    )
+
+    saved_visa = (
+        existing.get("visa_status")
+        if existing
+        else None
+    )
+
+    visa_options = [
+        "H1",
+        "H4 EAD",
+        "OPT",
+        "US Citizen",
+        "L1",
+        "Other",
+    ]
+
+    st.session_state["job_visa_status"] = (
+        saved_visa
+        if saved_visa in visa_options
+        else None
+    )
+
+    st.session_state["job_visa_other"] = (
+        existing.get("visa_status_other") or ""
+        if existing
+        else ""
+    )
+
+
+# ============================================
+# ARE YOU LOOKING FOR A JOB?
+# ============================================
+
 looking_for_job = st.radio(
     "Are you looking for a job?",
     ["Yes", "No"],
@@ -266,18 +328,23 @@ looking_for_job = st.radio(
 )
 
 
-# -----------------------------------
-# Form for Job Seekers
-# -----------------------------------
+# ============================================
+# JOB SEEKER FORM
+# ============================================
+
 if looking_for_job == "Yes":
 
     st.divider()
 
-    # Location detection outside the form
+    # ----------------------------------------
+    # LOCATION DETECTION
+    # ----------------------------------------
+
     st.subheader("📍 Location")
 
     st.caption(
-        "Use location detection or enter your city and state manually."
+        "Allow location access to detect your city "
+        "and state automatically, or enter them manually."
     )
 
     location_data = streamlit_geolocation()
@@ -288,17 +355,33 @@ if looking_for_job == "Yes":
         and location_data.get("longitude") is not None
     ):
         try:
-            detected = detect_city_state(
+            city_detected, state_detected = detect_city_state(
                 location_data["latitude"],
                 location_data["longitude"],
             )
 
-            if detected:
-                if st.session_state.get("last_detected_location") != detected:
-                    st.session_state["job_location"] = detected
-                    st.session_state["last_detected_location"] = detected
+            detected_location = (
+                city_detected,
+                state_detected,
+            )
 
-                st.success(f"Detected location: {detected}")
+            if city_detected and state_detected:
+
+                if (
+                    st.session_state.get("last_detected_location")
+                    != detected_location
+                ):
+                    st.session_state["job_city"] = city_detected
+                    st.session_state["job_state"] = state_detected
+
+                    st.session_state["last_detected_location"] = (
+                        detected_location
+                    )
+
+                st.success(
+                    f"Detected location: "
+                    f"{city_detected}, {state_detected}"
+                )
 
         except Exception:
             st.warning(
@@ -306,7 +389,10 @@ if looking_for_job == "Yes":
                 "Please enter your city and state manually."
             )
 
-    # Relocation outside the form for immediate UI updates
+    # ----------------------------------------
+    # RELOCATION PREFERENCE
+    # ----------------------------------------
+
     st.subheader("Relocation Preference")
 
     relocate = st.radio(
@@ -316,23 +402,65 @@ if looking_for_job == "Yes":
         key="job_relocate",
     )
 
+    relocation_other = None
+
     if relocate == "Other":
+
         relocation_other = st.text_area(
             "Please specify your relocation preference",
             placeholder=(
-                "e.g. Only within Texas, remote preferred, "
-                "or relocation with assistance"
+                "Example: Only within Texas, "
+                "remote preferred, or relocation "
+                "with assistance."
             ),
             key="job_relocation_other",
         )
-    else:
-        relocation_other = None
+
+    # ----------------------------------------
+    # VISA STATUS
+    # ----------------------------------------
+
+    st.subheader("Work Authorization")
+
+    visa_options = [
+        "H1",
+        "H4 EAD",
+        "OPT",
+        "US Citizen",
+        "L1",
+        "Other",
+    ]
+
+    saved_visa = st.session_state.get("job_visa_status")
+
+    visa_status = st.selectbox(
+        "Visa Status",
+        visa_options,
+        index=(
+            visa_options.index(saved_visa)
+            if saved_visa in visa_options
+            else None
+        ),
+        placeholder="Select your visa status",
+        key="job_visa_status",
+    )
+
+    visa_status_other = None
+
+    if visa_status == "Other":
+
+        visa_status_other = st.text_input(
+            "Please specify your visa status",
+            placeholder="Enter your visa status",
+            key="job_visa_other",
+        )
 
     st.divider()
 
-    # -----------------------------------
-    # Job Profile Form
-    # -----------------------------------
+    # ----------------------------------------
+    # MAIN JOB PROFILE FORM
+    # ----------------------------------------
+
     with st.form("job_profile_form"):
 
         st.subheader("Personal Information")
@@ -350,6 +478,7 @@ if looking_for_job == "Yes":
         col1, col2 = st.columns(2)
 
         with col1:
+
             dob = st.date_input(
                 "Date of Birth",
                 value=(
@@ -362,6 +491,7 @@ if looking_for_job == "Yes":
             )
 
         with col2:
+
             phone_number = st.text_input(
                 "Phone Number",
                 value=(
@@ -373,11 +503,31 @@ if looking_for_job == "Yes":
                 max_chars=25,
             )
 
-        location = st.text_input(
-            "Location (City, State)",
-            key="job_location",
-            placeholder="Dallas, TX",
-        )
+        # ------------------------------------
+        # CITY AND STATE
+        # ------------------------------------
+
+        city_col, state_col = st.columns(2)
+
+        with city_col:
+
+            city = st.text_input(
+                "City",
+                key="job_city",
+                placeholder="Dallas",
+            )
+
+        with state_col:
+
+            state = st.text_input(
+                "State",
+                key="job_state",
+                placeholder="Texas",
+            )
+
+        # ------------------------------------
+        # PROFESSIONAL INFORMATION
+        # ------------------------------------
 
         st.subheader("Professional Information")
 
@@ -388,7 +538,10 @@ if looking_for_job == "Yes":
                 if existing
                 else ""
             ),
-            placeholder="Python, SQL, Selenium, Business Analysis",
+            placeholder=(
+                "Python, SQL, Selenium, "
+                "Business Analysis"
+            ),
         )
 
         role = st.text_input(
@@ -398,7 +551,10 @@ if looking_for_job == "Yes":
                 if existing
                 else ""
             ),
-            placeholder="QA Engineer, Business Analyst, Product Owner",
+            placeholder=(
+                "QA Engineer, Business Analyst, "
+                "Product Owner"
+            ),
         )
 
         certifications = st.text_area(
@@ -418,8 +574,10 @@ if looking_for_job == "Yes":
                 if existing
                 else ""
             ),
-            placeholder="https://www.linkedin.com/in/your-profile",
-            help="Optional: Enter your LinkedIn profile URL.",
+            placeholder=(
+                "https://www.linkedin.com/in/your-profile"
+            ),
+            help="Optional LinkedIn profile URL.",
         )
 
         submitted = st.form_submit_button(
@@ -428,9 +586,10 @@ if looking_for_job == "Yes":
             use_container_width=True,
         )
 
-    # -----------------------------------
-    # Save Form Submission
-    # -----------------------------------
+    # ----------------------------------------
+    # VALIDATE AND SAVE FORM
+    # ----------------------------------------
+
     if submitted:
 
         linkedin_profile = linkedin_profile.strip()
@@ -446,12 +605,11 @@ if looking_for_job == "Yes":
             )
         )
 
+        phone_digits = re.sub(r"\D", "", phone_number)
+
         valid_phone = (
             not phone_number
-            or (
-                len(re.sub(r"\D", "", phone_number)) >= 10
-                and len(re.sub(r"\D", "", phone_number)) <= 15
-            )
+            or 10 <= len(phone_digits) <= 15
         )
 
         if not name.strip():
@@ -460,25 +618,51 @@ if looking_for_job == "Yes":
         elif not role.strip():
             st.error("Please enter your desired role.")
 
+        elif not city.strip():
+            st.error("Please enter your city.")
+
+        elif not state.strip():
+            st.error("Please enter your state.")
+
         elif not valid_phone:
             st.error("Please enter a valid phone number.")
 
         elif not valid_linkedin:
             st.error("Please enter a valid LinkedIn URL.")
 
-        elif relocate == "Other" and not (
-            relocation_other and relocation_other.strip()
+        elif (
+            relocate == "Other"
+            and not (
+                relocation_other
+                and relocation_other.strip()
+            )
         ):
-            st.error("Please specify your relocation preference.")
+            st.error(
+                "Please specify your relocation preference."
+            )
+
+        elif not visa_status:
+            st.error("Please select your visa status.")
+
+        elif (
+            visa_status == "Other"
+            and not (
+                visa_status_other
+                and visa_status_other.strip()
+            )
+        ):
+            st.error("Please specify your visa status.")
 
         else:
+
             profile = {
                 "looking_for_job": True,
                 "full_name": name.strip(),
                 "date_of_birth": dob,
                 "phone_number": phone_number or None,
                 "skills": skills.strip(),
-                "location": location.strip(),
+                "location": city.strip(),
+                "state": state.strip(),
                 "willing_to_relocate": relocate,
                 "relocation_other": (
                     relocation_other.strip()
@@ -487,25 +671,42 @@ if looking_for_job == "Yes":
                 ),
                 "desired_role": role.strip(),
                 "certifications": certifications.strip(),
-                "linkedin_profile": linkedin_profile or None,
+                "linkedin_profile": (
+                    linkedin_profile or None
+                ),
+                "visa_status": visa_status,
+                "visa_status_other": (
+                    visa_status_other.strip()
+                    if visa_status == "Other"
+                    else None
+                ),
             }
 
             try:
                 save_job_profile(user_id, profile)
+
                 st.success(
-                    "Your Job Profile has been saved successfully!"
+                    "Your Job Profile has been "
+                    "saved successfully!"
                 )
 
             except Exception as e:
-                st.error("Unable to save your Job Profile.")
+                st.error(
+                    "Unable to save your Job Profile."
+                )
                 st.exception(e)
 
 
-# -----------------------------------
-# User Not Looking for a Job
-# -----------------------------------
+# ============================================
+# NOT LOOKING FOR A JOB
+# ============================================
+
 else:
-    st.info("You have selected No.")
+
+    st.info(
+        "You have selected No. "
+        "Click Submit to save your response."
+    )
 
     if st.button("Submit", type="primary"):
 
@@ -516,18 +717,27 @@ else:
             "phone_number": None,
             "skills": None,
             "location": None,
+            "state": None,
             "willing_to_relocate": None,
             "relocation_other": None,
             "desired_role": None,
             "certifications": None,
             "linkedin_profile": None,
+            "visa_status": None,
+            "visa_status_other": None,
         }
 
         try:
             save_job_profile(user_id, profile)
-            st.success("Your response has been saved successfully!")
+
+            st.success(
+                "Your response has been "
+                "saved successfully!"
+            )
 
         except Exception as e:
-            st.error("Unable to save your response.")
+            st.error(
+                "Unable to save your response."
+            )
             st.exception(e)
 
