@@ -15,8 +15,15 @@ with st.container(border=True):
         "for AI extraction and publishing."
     )
 
-    if st.button("Open Vendor Job Form", type="primary"):
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("Vendor Jobs", use_container_width=True):
         st.switch_page("v3/admin/vendorjob.py")
+
+with col2:
+    if st.button("Full-Time Roles", use_container_width=True):
+        st.switch_page("v3/admin/fulltimejob.py")
 
 with st.sidebar:
     if st.button("Logout", key="admin_logout"):

@@ -12,6 +12,12 @@ pages = [
     st.Page("pages/4_Full_Time_Jobs.py", title="Full Time Jobs", icon="🏢"),
     st.Page("v3/admin/dashboard.py", title="Admin Dashboard", icon="🛡️", url_path="v3-admin"),
     st.Page("v3/admin/vendorjob.py", title="Vendor Job Form", icon="📝", url_path="v3-admin-vendorjob"),
+    st.Page(
+    "v3/admin/fulltimejob.py",
+    title="Admin - Full-Time Roles",
+    url_path="admin-full-time-roles",
+    default=False
+),
 ]
 
 st.navigation(pages, position="hidden").run()
