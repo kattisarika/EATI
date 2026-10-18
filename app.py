@@ -18,6 +18,7 @@ pages = [
     url_path="admin-full-time-roles",
     default=False
 ),
+   st.Page("pages/5_Feedback.py", title="Feedback", icon="💬", url_path="Feedback"),
 ]
 
 st.navigation(pages, position="hidden").run()

@@ -52,12 +52,13 @@ if not st.session_state.get("admin_landing_checked", False):
 
 # Top navigation: each link opens a separate Streamlit page.
 st.markdown("### Career Tools")
-nav_cols = st.columns(4)
+nav_cols = st.columns(5)
 nav_items = [
     ("Job Profile", "pages/1_Job_Profile.py"),
     ("Mock Interviews", "pages/2_Mock_Interviews.py"),
     ("Jobs By Vendors", "pages/3_Jobs_By_Vendors.py"),
     ("Full Time Jobs", "pages/4_Full_Time_Jobs.py"),
+    ("Feedback Form", "pages/5_Feedback.py"),
 ]
 for column, (label, destination) in zip(nav_cols, nav_items):
     with column:
