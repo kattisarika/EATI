@@ -76,6 +76,7 @@ with st.sidebar:
         st.session_state.pop("google_user_saved", None)
         st.session_state.pop("app_user_id", None)
         st.session_state.pop("admin_landing_checked", None)
+        st.session_state.pop("idle_timer_session_id", None)
         st.logout()
 
     st.divider()

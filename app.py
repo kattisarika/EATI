@@ -1,7 +1,10 @@
 """EATI navigation entrypoint. Keep this file as Streamlit Cloud main file."""
 import streamlit as st
+from idle_timeout import install_idle_timeout
 
 st.set_page_config(page_title="Economic Activity Tracker", page_icon="📊", layout="wide")
+install_idle_timeout()
+
 # st.navigation supports single-segment URL paths, not nested /v3/admin paths.
 # Admin access is enforced inside the admin pages, NOT by hiding links.
 pages = [
