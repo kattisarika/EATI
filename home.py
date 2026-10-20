@@ -8,6 +8,20 @@ from user_database import save_google_user
 from admin_auth import is_admin
 
 
+def logout():
+    """Clear per-login session state, then end the Google session."""
+
+    for key in (
+        "google_user_saved",
+        "app_user_id",
+        "admin_landing_checked",
+        "idle_timer_session_id",
+    ):
+        st.session_state.pop(key, None)
+
+    st.logout()
+
+
 # -----------------------------------
 # Google Authentication
 # -----------------------------------
@@ -50,6 +64,23 @@ if not st.session_state.get("admin_landing_checked", False):
         # The admin pages independently enforce authorization.
         pass
 
+# Account bar: the sidebar starts collapsed, so Logout also lives in the
+# main body where it is always reachable.
+account_col, logout_col = st.columns([8, 2], vertical_alignment="center")
+
+with account_col:
+    st.markdown(f"**Welcome, {st.user.name}**")
+
+with logout_col:
+    if st.button(
+        "🚪 Logout",
+        key="home_logout_main",
+        use_container_width=True,
+    ):
+        logout()
+
+st.divider()
+
 # Top navigation: each link opens a separate Streamlit page.
 st.markdown("### Career Tools")
 nav_cols = st.columns(5)
@@ -72,12 +103,8 @@ with st.sidebar:
     st.title("EATI")
     st.write(f"Welcome, {st.user.name}")
 
-    if st.button("Logout"):
-        st.session_state.pop("google_user_saved", None)
-        st.session_state.pop("app_user_id", None)
-        st.session_state.pop("admin_landing_checked", None)
-        st.session_state.pop("idle_timer_session_id", None)
-        st.logout()
+    if st.button("🚪 Logout", key="home_logout_sidebar", use_container_width=True):
+        logout()
 
     st.divider()
 

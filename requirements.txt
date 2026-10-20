@@ -9,3 +9,4 @@ psycopg[binary]
 Authlib
 streamlit-geolocation
 geopy
+certifi

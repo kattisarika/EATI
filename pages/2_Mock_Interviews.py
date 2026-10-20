@@ -25,8 +25,12 @@ if not st.user.get("is_logged_in", False):
 # -----------------------------------------
 # Navigation
 # -----------------------------------------
-if st.button("🏠 Back to EATI Dashboard"):
-    st.switch_page("home.py")
+
+home_col, dashboard_col = st.columns(2)
+
+with home_col:
+    if st.button("🏠 Back to Home", use_container_width=True):
+        st.switch_page("home.py")
 
 st.divider()
 

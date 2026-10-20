@@ -1,6 +1,8 @@
 
 import re
+import ssl
 from datetime import date
+from html import escape
 
 import psycopg
 import streamlit as st
@@ -20,6 +22,297 @@ st.set_page_config(
 
 
 # ============================================
+# PAGE STYLING
+# ============================================
+
+st.markdown("""
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --eati-navy: #16375B;
+    --eati-blue: #1765A5;
+    --eati-sky: #E8F1F9;
+    --eati-accent: #0FA47A;
+    --eati-ink: #2C3E50;
+    --eati-muted: #6B7C93;
+    --eati-line: #E1E7EF;
+    --eati-shadow: 0 1px 2px rgba(22, 55, 91, .06),
+                   0 8px 24px rgba(22, 55, 91, .06);
+}
+
+html, body, .stApp, [class*="css"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont,
+                 'Segoe UI', sans-serif;
+}
+
+.stApp {
+    background:
+        radial-gradient(1100px 520px at 88% -8%,
+                        rgba(23, 101, 165, .09), transparent 60%),
+        #FBFCFE;
+}
+
+h1, h2, h3 {
+    color: var(--eati-navy);
+    letter-spacing: -0.02em;
+}
+
+/* ---------- Profile header card ---------- */
+
+.jp-header {
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+    background: #FFFFFF;
+    border: 2px solid var(--eati-blue);
+    border-radius: 18px;
+    padding: 1.6rem 1.8rem;
+    box-shadow: var(--eati-shadow);
+    margin-bottom: 1.2rem;
+}
+
+.jp-avatar {
+    flex: 0 0 auto;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: var(--eati-sky);
+    border: 2px solid var(--eati-blue);
+    color: var(--eati-blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.jp-header .who {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.jp-header h1 {
+    margin: 0 0 .2rem 0;
+    font-size: 1.65rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.jp-header .sub {
+    font-size: .9rem;
+    color: var(--eati-muted);
+    line-height: 1.5;
+}
+
+/* ---------- Section headers ---------- */
+
+.jp-section {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin: 1.6rem 0 .2rem 0;
+    padding-bottom: .7rem;
+    border-bottom: 1px solid var(--eati-line);
+}
+
+.jp-section .chip {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--eati-sky);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+}
+
+.jp-section .text h3 {
+    margin: 0;
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: var(--eati-navy);
+}
+
+.jp-section .text .hint {
+    font-size: .82rem;
+    color: var(--eati-muted);
+    line-height: 1.4;
+}
+
+/* ---------- Status pill ---------- */
+
+.jp-pill {
+    display: inline-block;
+    font-size: .74rem;
+    font-weight: 600;
+    letter-spacing: .03em;
+    padding: .25rem .7rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+}
+
+.jp-pill.saved {
+    background: #E6F7F1;
+    color: #0B7E5E;
+    border-color: #BFEADC;
+}
+
+.jp-pill.draft {
+    background: #FFF4E5;
+    color: #9A6400;
+    border-color: #FFE0B2;
+}
+
+/* ---------- Form card ---------- */
+
+[data-testid="stForm"] {
+    background: #FFFFFF;
+    border: 1px solid var(--eati-line);
+    border-radius: 16px;
+    padding: 1.6rem 1.8rem;
+    box-shadow: var(--eati-shadow);
+}
+
+/* ---------- Inputs ---------- */
+
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stDateInput"] input {
+    border-radius: 10px !important;
+    border: 1px solid var(--eati-line) !important;
+    background: #FFFFFF !important;
+    color: var(--eati-ink) !important;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+[data-testid="stTextInput"] input:focus,
+[data-testid="stTextArea"] textarea:focus,
+[data-testid="stDateInput"] input:focus {
+    border-color: var(--eati-blue) !important;
+    box-shadow: 0 0 0 3px rgba(23, 101, 165, .14) !important;
+}
+
+[data-testid="stTextInput"] label,
+[data-testid="stTextArea"] label,
+[data-testid="stDateInput"] label,
+[data-testid="stSelectbox"] label,
+[data-testid="stRadio"] label {
+    font-weight: 600 !important;
+    color: var(--eati-navy) !important;
+}
+
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+    border-radius: 10px !important;
+    border-color: var(--eati-line) !important;
+}
+
+/* ---------- Radio as pill group ---------- */
+
+[data-testid="stRadioGroup"] {
+    gap: .5rem;
+}
+
+[data-testid="stRadioGroup"] > label {
+    background: #FFFFFF;
+    border: 1px solid var(--eati-line);
+    border-radius: 999px;
+    padding: .35rem .95rem .35rem .55rem;
+    transition: border-color .15s ease, background .15s ease;
+}
+
+[data-testid="stRadioGroup"] > label:hover {
+    border-color: var(--eati-blue);
+    background: var(--eati-sky);
+}
+
+/* ---------- Buttons ---------- */
+
+div.stButton > button,
+[data-testid="stFormSubmitButton"] > button {
+    border-radius: 10px;
+    font-weight: 600;
+    min-height: 46px;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+
+div.stButton > button:hover,
+[data-testid="stFormSubmitButton"] > button:hover {
+    transform: translateY(-1px);
+}
+
+div.stButton > button[kind="primary"],
+[data-testid="stFormSubmitButton"] > button[kind="primary"] {
+    background: linear-gradient(135deg,
+                                var(--eati-blue) 0%,
+                                var(--eati-navy) 100%);
+    border: none;
+    color: #FFFFFF;
+    box-shadow: 0 6px 18px rgba(23, 101, 165, .28);
+}
+
+/* Back button: white with a blue outline. */
+.st-key-jp_back_home div.stButton > button {
+    background: #FFFFFF !important;
+    border: 2px solid var(--eati-blue) !important;
+    color: var(--eati-blue) !important;
+    box-shadow: none !important;
+}
+
+.st-key-jp_back_home div.stButton > button:hover {
+    background: var(--eati-sky) !important;
+    border-color: var(--eati-navy) !important;
+    color: var(--eati-navy) !important;
+}
+
+.st-key-jp_back_home div.stButton > button p {
+    color: inherit !important;
+    pointer-events: none;
+}
+
+/* ---------- Alerts ---------- */
+
+[data-testid="stAlert"] {
+    border-radius: 12px;
+}
+
+@media (max-width: 768px) {
+    .jp-header {
+        padding: 1.2rem 1.1rem;
+        gap: .8rem;
+    }
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+
+def section(icon, title, hint=""):
+    """Render a consistent section header."""
+
+    hint_html = (
+        f'<div class="hint">{escape(hint)}</div>'
+        if hint
+        else ""
+    )
+
+    st.markdown(
+        f"""
+        <div class="jp-section">
+            <div class="chip">{icon}</div>
+            <div class="text">
+                <h3>{escape(title)}</h3>
+                {hint_html}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================
 # GOOGLE AUTHENTICATION
 # ============================================
 
@@ -32,15 +325,16 @@ if not st.user.get("is_logged_in", False):
 # -----------------------------------------
 # Navigation
 # -----------------------------------------
-if st.button("🏠 Back to EATI Dashboard"):
-    st.switch_page("home.py")
 
-st.divider()
+home_col, _ = st.columns([2, 7])
 
-
-
-
-
+with home_col:
+    if st.button(
+        "🏠 Back to Home",
+        key="jp_back_home",
+        use_container_width=True,
+    ):
+        st.switch_page("home.py")
 
 # ============================================
 # DATABASE CONNECTION
@@ -207,12 +501,36 @@ def save_job_profile(user_id, profile):
 # DETECT CITY AND STATE
 # ============================================
 
+def _geocoder():
+    """Nominatim client with an explicit CA bundle.
+
+    Some Python installs (notably the python.org macOS build before
+    "Install Certificates.command" is run) ship no CA bundle, which makes
+    every HTTPS verify fail. Pointing at certifi keeps reverse geocoding
+    working regardless of the interpreter's default trust store.
+    """
+
+    try:
+        import certifi
+
+        context = ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        context = None
+
+    return Nominatim(
+        user_agent="eati_job_profile",
+        ssl_context=context,
+    )
+
+
+# Nominatim allows roughly one request per second, and Streamlit reruns the
+# script on every interaction. Cache by rounded coordinates (~11 m) so a
+# rerun does not re-query for a location we already resolved.
+@st.cache_data(ttl=3600, show_spinner=False)
 def detect_city_state(latitude, longitude):
 
-    geolocator = Nominatim(user_agent="eati_job_profile")
-
-    result = geolocator.reverse(
-        (latitude, longitude),
+    result = _geocoder().reverse(
+        (round(latitude, 4), round(longitude, 4)),
         language="en",
         timeout=10,
     )
@@ -240,11 +558,28 @@ def detect_city_state(latitude, longitude):
 # LOAD USER AND EXISTING PROFILE
 # ============================================
 
-st.title("👤 Job Profile")
+user_name = st.user.get("name") or "there"
+user_email = st.user.get("email") or ""
+initial = user_name.strip()[:1].upper() or "?"
 
-st.write(
-    "Complete your profile to help us understand "
-    "your job preferences."
+st.markdown(
+    f"""
+    <div class="jp-header">
+        <div class="jp-avatar">{escape(initial)}</div>
+        <div class="who">
+            <h1>👤 Job Profile</h1>
+            <div class="sub">
+                Complete your profile to help us understand your job
+                preferences.{
+                    f" Signed in as {escape(user_email)}."
+                    if user_email
+                    else ""
+                }
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 try:
@@ -255,6 +590,13 @@ except Exception as e:
     st.error("Unable to load your Job Profile.")
     st.exception(e)
     st.stop()
+
+st.markdown(
+    '<span class="jp-pill saved">✓ Saved profile found</span>'
+    if existing
+    else '<span class="jp-pill draft">◷ No profile saved yet</span>',
+    unsafe_allow_html=True,
+)
 
 
 # ============================================
@@ -333,6 +675,12 @@ if st.session_state.get("job_profile_user_id") != str(user_id):
 # ARE YOU LOOKING FOR A JOB?
 # ============================================
 
+section(
+    "🎯",
+    "Job Search Status",
+    "Tell us whether you are actively looking right now.",
+)
+
 looking_for_job = st.radio(
     "Are you looking for a job?",
     ["Yes", "No"],
@@ -347,17 +695,15 @@ looking_for_job = st.radio(
 
 if looking_for_job == "Yes":
 
-    st.divider()
-
     # ----------------------------------------
     # LOCATION DETECTION
     # ----------------------------------------
 
-    st.subheader("📍 Location")
-
-    st.caption(
-        "Allow location access to detect your city "
-        "and state automatically, or enter them manually."
+    section(
+        "📍",
+        "Location",
+        "Allow location access to detect your city and state "
+        "automatically, or enter them manually below.",
     )
 
     location_data = streamlit_geolocation()
@@ -396,17 +742,34 @@ if looking_for_job == "Yes":
                     f"{city_detected}, {state_detected}"
                 )
 
-        except Exception:
+        except Exception as location_error:
             st.warning(
-                "Unable to detect location. "
-                "Please enter your city and state manually."
+                "Unable to detect location automatically. "
+                "Please enter your city and state manually below."
             )
+
+            with st.expander("Why did location detection fail?"):
+                st.caption(
+                    f"{type(location_error).__name__}: {location_error}"
+                )
+
+                if "CERTIFICATE_VERIFY_FAILED" in str(location_error):
+                    st.caption(
+                        "This Python install has no CA certificate "
+                        "bundle. Run the 'Install Certificates.command' "
+                        "script bundled with Python, or `pip install "
+                        "certifi`, then restart the app."
+                    )
 
     # ----------------------------------------
     # RELOCATION PREFERENCE
     # ----------------------------------------
 
-    st.subheader("Relocation Preference")
+    section(
+        "🧭",
+        "Relocation Preference",
+        "Let employers know how far you are willing to move.",
+    )
 
     relocate = st.radio(
         "Are you willing to relocate?",
@@ -433,7 +796,11 @@ if looking_for_job == "Yes":
     # VISA STATUS
     # ----------------------------------------
 
-    st.subheader("Work Authorization")
+    section(
+        "🛂",
+        "Work Authorization",
+        "Your current visa or work authorization status.",
+    )
 
     visa_options = [
         "H1",
@@ -468,15 +835,17 @@ if looking_for_job == "Yes":
             key="job_visa_other",
         )
 
-    st.divider()
-
     # ----------------------------------------
     # MAIN JOB PROFILE FORM
     # ----------------------------------------
 
     with st.form("job_profile_form"):
 
-        st.subheader("Personal Information")
+        section(
+            "🪪",
+            "Personal Information",
+            "How we identify and contact you.",
+        )
 
         name = st.text_input(
             "Name",
@@ -542,7 +911,11 @@ if looking_for_job == "Yes":
         # PROFESSIONAL INFORMATION
         # ------------------------------------
 
-        st.subheader("Professional Information")
+        section(
+            "💼",
+            "Professional Information",
+            "Skills, target role, and credentials.",
+        )
 
         skills = st.text_area(
             "Skills",
@@ -593,8 +966,13 @@ if looking_for_job == "Yes":
             help="Optional LinkedIn profile URL.",
         )
 
+        st.markdown(
+            "<div style='height:.6rem'></div>",
+            unsafe_allow_html=True,
+        )
+
         submitted = st.form_submit_button(
-            "Submit",
+            "💾 Save My Job Profile",
             type="primary",
             use_container_width=True,
         )
@@ -721,7 +1099,11 @@ else:
         "Click Submit to save your response."
     )
 
-    if st.button("Submit", type="primary"):
+    if st.button(
+        "💾 Save My Response",
+        type="primary",
+        use_container_width=True,
+    ):
 
         profile = {
             "looking_for_job": False,
