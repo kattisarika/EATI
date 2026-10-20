@@ -19,7 +19,11 @@ def logout():
     ):
         st.session_state.pop(key, None)
 
+    # st.logout() clears st.user immediately and only *enqueues* a redirect:
+    # it does not halt the script. Without st.stop(), the rest of this page
+    # keeps rendering against an empty st.user and crashes on st.user.name.
     st.logout()
+    st.stop()
 
 
 # -----------------------------------
@@ -69,7 +73,7 @@ if not st.session_state.get("admin_landing_checked", False):
 account_col, logout_col = st.columns([8, 2], vertical_alignment="center")
 
 with account_col:
-    st.markdown(f"**Welcome, {st.user.name}**")
+    st.markdown(f"**Welcome, {st.user.get('name') or 'there'}**")
 
 with logout_col:
     if st.button(
@@ -101,7 +105,7 @@ st.divider()
 # -----------------------------------
 with st.sidebar:
     st.title("EATI")
-    st.write(f"Welcome, {st.user.name}")
+    st.write(f"Welcome, {st.user.get('name') or 'there'}")
 
     if st.button("🚪 Logout", key="home_logout_sidebar", use_container_width=True):
         logout()

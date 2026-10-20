@@ -28,3 +28,4 @@ with col2:
 with st.sidebar:
     if st.button("Logout", key="admin_logout"):
         st.logout()
+        st.stop()
