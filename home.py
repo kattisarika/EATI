@@ -68,6 +68,56 @@ if not st.session_state.get("admin_landing_checked", False):
         # The admin pages independently enforce authorization.
         pass
 
+# Career Tools links render at Streamlit's default body size, which reads
+# as small for what is the dashboard's primary navigation.
+st.markdown(
+    """
+    <style>
+    [data-testid="stPageLink"] a {
+        font-size: 1.15rem !important;
+        font-weight: 600 !important;
+        color: #16375B !important;
+        padding: .75rem .9rem !important;
+        border: 1px solid #E1E7EF;
+        border-radius: 12px;
+        background: #FFFFFF;
+        box-shadow: 0 1px 2px rgba(22,55,91,.06);
+        transition: border-color .15s ease, background .15s ease,
+                    transform .15s ease;
+    }
+
+    /* The label sits in its own <p> that carries its own size. */
+    [data-testid="stPageLink"] a p {
+        font-size: 1.15rem !important;
+        font-weight: 600 !important;
+        color: inherit !important;
+    }
+
+    [data-testid="stPageLink"] a:hover {
+        border-color: #1765A5;
+        background: #E8F1F9;
+        transform: translateY(-2px);
+    }
+
+    /* Enlarge the icon alongside the label. */
+    [data-testid="stPageLink"] a span[data-testid="stIconMaterial"],
+    [data-testid="stPageLink"] a svg {
+        width: 1.3rem !important;
+        height: 1.3rem !important;
+        font-size: 1.3rem !important;
+    }
+
+    @media (max-width: 768px) {
+        [data-testid="stPageLink"] a,
+        [data-testid="stPageLink"] a p {
+            font-size: 1rem !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Account bar: the sidebar starts collapsed, so Logout also lives in the
 # main body where it is always reachable.
 account_col, logout_col = st.columns([8, 2], vertical_alignment="center")
@@ -86,18 +136,22 @@ with logout_col:
 st.divider()
 
 # Top navigation: each link opens a separate Streamlit page.
-st.markdown("### Career Tools")
+st.markdown(
+    "<h2 style='color:#16375B;font-weight:700;margin:.2rem 0 .8rem 0;'>"
+    "Career Tools</h2>",
+    unsafe_allow_html=True,
+)
 nav_cols = st.columns(5)
 nav_items = [
-    ("Job Profile", "pages/1_Job_Profile.py"),
-    ("Mock Interviews", "pages/2_Mock_Interviews.py"),
-    ("Jobs By Vendors", "pages/3_Jobs_By_Vendors.py"),
-    ("Full Time Jobs", "pages/4_Full_Time_Jobs.py"),
-    ("Feedback Form", "pages/5_Feedback.py"),
+    ("Job Profile", "pages/1_Job_Profile.py", "📄"),
+    ("Mock Interviews", "pages/2_Mock_Interviews.py", "🎤"),
+    ("Jobs By Vendors", "pages/3_Jobs_By_Vendors.py", "💼"),
+    ("Full Time Jobs", "pages/4_Full_Time_Jobs.py", "🏢"),
+    ("Feedback Form", "pages/5_Feedback.py", "💬"),
 ]
-for column, (label, destination) in zip(nav_cols, nav_items):
+for column, (label, destination, icon) in zip(nav_cols, nav_items):
     with column:
-        st.page_link(destination, label=label, icon="📄")
+        st.page_link(destination, label=label, icon=icon)
 st.divider()
 
 # -----------------------------------
@@ -105,12 +159,9 @@ st.divider()
 # -----------------------------------
 with st.sidebar:
     st.title("EATI")
-    st.write(f"Welcome, {st.user.get('name') or 'there'}")
 
-    if st.button("🚪 Logout", key="home_logout_sidebar", use_container_width=True):
-        logout()
-
-    st.divider()
+    # Welcome text and Logout live in the main-body account bar above.
+    # Duplicating them here showed the same thing twice on screen.
 
     page = st.radio(
         "Navigation",
